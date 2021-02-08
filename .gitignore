@@ -1,0 +1,12 @@
+node_modules
+*.log
+coverage
+.DS_Store
+.idea
+htmlcov
+yarn.lock
+
+# Project-specific files
+shared/src/config.ts
+sentry.properties
+.env.test.local
