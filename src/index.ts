@@ -10,36 +10,53 @@ import yargs from 'yargs';
 import { Attribute, Entity, EntityWithAttributes } from './types';
 import { capitalize, convertPathToCamelCase, preparePropertyName } from './utils';
 
-const serverUrl = 'http://localhost:8080';
 
-// TODO: pass server Url and auth header to argv
 // TODO: Parametrize Bundle
 // TODO: add type aliases for AidboxResource/AidboxReference
 
-interface Argv {
-    output: string;
-    [x: string]: unknown;
-}
-
 const argv = yargs(process.argv.slice(2))
     .options({
-        output: {
+        outputFile: {
             description: 'Output file',
             alias: 'o',
             type: 'string',
             demandOption: true,
         },
+        baseUrl: {
+            description: 'Aidbox URL',
+            alias: 'u',
+            type: 'string',
+            demandOption: true,
+        },
+        authorizationHeader: {
+            description: 'Authorization header',
+            alias: 'auth',
+            type: 'string',
+        },
     })
     .help()
     .alias('help', 'h').argv;
 
-main(argv)
+const { authorizationHeader, baseUrl, outputFile } = argv;
+
+main()
     .then(() => console.log('Aidbox type script annotations are successfully generated'))
     .catch((err) => console.log('Error while generating', err));
 
-async function main(argv: Argv) {
+function fetchResources<T extends { resourceType: string; }>(resourceType: T['resourceType']): Promise<T[]> {
+    return fetch(`${baseUrl}/${resourceType}/$dump`, {
+        headers: {
+            'Content-Type': 'application/json',
+            ...(authorizationHeader ? { 'Authorization': authorizationHeader } : {})
+        },
+    }).then((response: any) => response.text()).then((data) =>
+        data.trim().split('\n').map(JSON.parse)
+    );
+}
+
+async function main() {
     const project = new Project({});
-    const annotationsFile = project.createSourceFile(argv.output, {}, { overwrite: true });
+    const annotationsFile = project.createSourceFile(outputFile, {}, { overwrite: true });
 
     const entitiesWithAttributes = await getEntitiesWithAttributes();
     const interfaceDeclarations: Record<string, InterfaceDeclarationStructure> = {};
@@ -88,49 +105,34 @@ async function main(argv: Argv) {
 }
 
 async function getEntitiesWithAttributes(): Promise<EntityWithAttributes[]> {
-    const doQuery = (url: string) => {
-        return fetch(`${serverUrl}${url}`, {
-            headers: {
-                'Content-Type': 'application/json',
-            },
-        }).then((response: any) => response.json());
-    };
+    const attributes = await fetchResources<Attribute>('Attribute');
+    const entities = await fetchResources<Entity>('Entity')
 
-    let url = `/Entity?_count=10&_sort=type,id&_revinclude=Attribute:entity`;
-    const result: EntityWithAttributes[] = [];
-    while (url) {
-        const data = await doQuery(url);
+    const entitiesById = entities.reduce((acc, entity) => {
+        acc[entity.id] = entity;
 
-        const resources: Array<Entity | Attribute> = data.entry.map((entry: any) => entry.resource);
+        return acc;
+    }, {});
 
-        const entitiesWithAttributesList = Object.values(
-            resources.reduce((acc, resource) => {
-                if (resource.resourceType === 'Entity') {
-                    if (!(resource.id in acc)) {
-                        const entity = resource as Entity;
+    const entitiesWithAttributesList = Object.values(
+        attributes.reduce((acc, attribute) => {
+            const entityId = attribute.resource.id;
+            if (!(entityId in acc)) {
+                acc[entityId] = {
+                    entity: entitiesById[entityId],
+                    attributes: [],
+                };
 
-                        acc[entity.id] = {
-                            entity,
-                            attributes: [],
-                        };
-                    }
-                } else {
-                    const attr = resource as Attribute;
+            } else {
+                acc[entityId].attributes.push(attribute);
+            }
 
-                    acc[attr.resource.id].attributes.push(attr);
-                }
+            return acc;
+        }, {} as Record<string, EntityWithAttributes>),
+    );
 
-                return acc;
-            }, {} as Record<string, EntityWithAttributes>),
-        );
 
-        result.push.apply(result, entitiesWithAttributesList);
-
-        url = data.link.find((link: { relation: string; url: string }) => link.relation === 'next')
-            ?.url;
-    }
-
-    return result
+    return entitiesWithAttributesList
         .map(({ entity, attributes }) => ({
             entity,
             attributes: attributes.sort((attribute1: Attribute, attribute2: Attribute) => {
@@ -231,8 +233,8 @@ function fillProperties(
 
         const propertyName = preparePropertyName(
             attribute.path.filter((p) => p !== '*')[
-                attribute.path.filter((p) => p !== '*').length - 1
-            ],
+            attribute.path.filter((p) => p !== '*').length - 1
+                ],
         );
 
         const interfaceDeclaration = interfaceDeclarations[interfaceName];
