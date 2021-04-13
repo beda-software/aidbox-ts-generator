@@ -108,8 +108,8 @@ async function getEntitiesWithAttributes(): Promise<EntityWithAttributes[]> {
     const attributes = await fetchResources<Attribute>('Attribute');
     const entities = await fetchResources<Entity>('Entity')
 
-    const entitiesById = entities.reduce((acc, entity) => {
-        acc[entity.id] = entity;
+    const mappingById: Record<string, EntityWithAttributes>  = entities.reduce((acc, entity) => {
+        acc[entity.id] = {entity, attributes:[]};
 
         return acc;
     }, {});
@@ -117,18 +117,11 @@ async function getEntitiesWithAttributes(): Promise<EntityWithAttributes[]> {
     const entitiesWithAttributesList = Object.values(
         attributes.reduce((acc, attribute) => {
             const entityId = attribute.resource.id;
-            if (!(entityId in acc)) {
-                acc[entityId] = {
-                    entity: entitiesById[entityId],
-                    attributes: [],
-                };
 
-            } else {
-                acc[entityId].attributes.push(attribute);
-            }
+            acc[entityId].attributes.push(attribute);
 
             return acc;
-        }, {} as Record<string, EntityWithAttributes>),
+        }, mappingById ),
     );
 
 
