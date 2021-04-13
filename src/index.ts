@@ -10,7 +10,6 @@ import yargs from 'yargs';
 import { Attribute, Entity, EntityWithAttributes } from './types';
 import { capitalize, convertPathToCamelCase, preparePropertyName } from './utils';
 
-
 // TODO: Parametrize Bundle
 
 const argv = yargs(process.argv.slice(2))
@@ -42,15 +41,17 @@ main()
     .then(() => console.log('Aidbox type script annotations are successfully generated'))
     .catch((err) => console.log('Error while generating', err));
 
-function fetchResources<T extends { resourceType: string; }>(resourceType: T['resourceType']): Promise<T[]> {
+function fetchResources<T extends { resourceType: string }>(
+    resourceType: T['resourceType'],
+): Promise<T[]> {
     return fetch(`${baseUrl}/${resourceType}/$dump`, {
         headers: {
             'Content-Type': 'application/json',
-            ...(authorizationHeader ? { 'Authorization': authorizationHeader } : {})
+            ...(authorizationHeader ? { Authorization: authorizationHeader } : {}),
         },
-    }).then((response: any) => response.text()).then((data) =>
-        data.trim().split('\n').map(JSON.parse)
-    );
+    })
+        .then((response: any) => response.text())
+        .then((data) => data.trim().split('\n').map(JSON.parse));
 }
 
 async function main() {
@@ -65,13 +66,13 @@ async function main() {
         kind: StructureKind.TypeAlias,
         name: 'AidboxResource',
         isExported: true,
-        type: 'Resource'
+        type: 'Resource',
     };
     typeAliasDeclarations.AidboxReference = {
         kind: StructureKind.TypeAlias,
         name: 'AidboxReference<T extends Resource=any>',
         isExported: true,
-        type: 'Reference<T>'
+        type: 'Reference<T>',
     };
 
     entitiesWithAttributes.forEach(({ entity }) => {
@@ -96,7 +97,7 @@ async function main() {
 
 async function getEntitiesWithAttributes(): Promise<EntityWithAttributes[]> {
     const attributes = await fetchResources<Attribute>('Attribute');
-    const entities = await fetchResources<Entity>('Entity')
+    const entities = await fetchResources<Entity>('Entity');
 
     const mappingById: Record<string, EntityWithAttributes> = entities.reduce((acc, entity) => {
         acc[entity.id] = { entity, attributes: [] };
@@ -161,7 +162,7 @@ function fillInterfaces(
             properties: [
                 {
                     name: 'resourceType',
-                    type: `T["resourceType"]`
+                    type: `T["resourceType"]`,
                 },
             ],
         };
@@ -174,14 +175,19 @@ function fillInterfaces(
                 interfaceName === 'Bundle'
                     ? `${interfaceName}<T extends Resource=any>`
                     : interfaceName,
-            properties: entity.type === 'resource' ||  interfaceName === 'Resource' ? [
-                {
-                    name: 'readonly resourceType',
-                    type: `${interfaceName === 'Resource' ? 'string' : `'${interfaceName}'`}`
-                },
-                { name: 'id', type: 'id', hasQuestionToken: true },
-                { name: 'meta', type: 'Meta', hasQuestionToken: true },
-            ] : [],
+            properties:
+                entity.type === 'resource' || interfaceName === 'Resource'
+                    ? [
+                          {
+                              name: 'readonly resourceType',
+                              type: `${
+                                  interfaceName === 'Resource' ? 'string' : `'${interfaceName}'`
+                              }`,
+                          },
+                          { name: 'id', type: 'id', hasQuestionToken: true },
+                          { name: 'meta', type: 'Meta', hasQuestionToken: true },
+                      ]
+                    : [],
         };
     }
 }
@@ -223,8 +229,8 @@ function fillProperties(
 
         const propertyName = preparePropertyName(
             attribute.path.filter((p) => p !== '*')[
-            attribute.path.filter((p) => p !== '*').length - 1
-                ],
+                attribute.path.filter((p) => p !== '*').length - 1
+            ],
         );
 
         const interfaceDeclaration = interfaceDeclarations[interfaceName];
@@ -239,7 +245,6 @@ function fillProperties(
 
                 return `Reference<${resourceNames}>`;
             }
-
 
             // TODO: generalize
             if (entity.id === 'Bundle' && attribute.path.join('.') === 'entry') {
@@ -300,7 +305,7 @@ function fillProperties(
             }
 
             return `${type}[]`;
-        }
+        };
 
         const propertyType = getPropertyType();
         const property = {
@@ -321,7 +326,10 @@ function fillProperties(
             interfaceDeclarations[interfaceName] = {
                 kind: StructureKind.Interface,
                 isExported: true,
-                name: interfaceName === 'BundleEntry' ? `${interfaceName}<T extends Resource=any>` : interfaceName,
+                name:
+                    interfaceName === 'BundleEntry'
+                        ? `${interfaceName}<T extends Resource=any>`
+                        : interfaceName,
                 properties: [property],
             };
         }
