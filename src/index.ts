@@ -12,7 +12,6 @@ import { capitalize, convertPathToCamelCase, preparePropertyName } from './utils
 
 
 // TODO: Parametrize Bundle
-// TODO: add type aliases for AidboxResource/AidboxReference
 
 const argv = yargs(process.argv.slice(2))
     .options({
@@ -62,26 +61,17 @@ async function main() {
     const interfaceDeclarations: Record<string, InterfaceDeclarationStructure> = {};
     const typeAliasDeclarations: Record<string, TypeAliasDeclarationStructure> = {};
 
-    // TODO: use type aliases for Reference/Resource
-    interfaceDeclarations.AidboxResource = {
-        kind: StructureKind.Interface,
+    typeAliasDeclarations.AidboxResource = {
+        kind: StructureKind.TypeAlias,
         name: 'AidboxResource',
         isExported: true,
-        properties: [
-            { name: 'resourceType', type: 'string' },
-            { name: 'id', type: 'id', hasQuestionToken: true },
-            { name: 'meta', type: 'Meta', hasQuestionToken: true },
-        ],
+        type: 'Resource'
     };
-    interfaceDeclarations.AidboxReference = {
-        kind: StructureKind.Interface,
-        name: 'AidboxReference<T extends AidboxResource>',
+    typeAliasDeclarations.AidboxReference = {
+        kind: StructureKind.TypeAlias,
+        name: 'AidboxReference<T extends Resource=any>',
         isExported: true,
-        properties: [
-            { name: 'resourceType', type: `T['resourceType']` },
-            { name: 'id', type: 'id' },
-            { name: 'display', type: 'string', hasQuestionToken: true },
-        ],
+        type: 'Reference<T>'
     };
 
     entitiesWithAttributes.forEach(({ entity }) => {
@@ -108,8 +98,8 @@ async function getEntitiesWithAttributes(): Promise<EntityWithAttributes[]> {
     const attributes = await fetchResources<Attribute>('Attribute');
     const entities = await fetchResources<Entity>('Entity')
 
-    const mappingById: Record<string, EntityWithAttributes>  = entities.reduce((acc, entity) => {
-        acc[entity.id] = {entity, attributes:[]};
+    const mappingById: Record<string, EntityWithAttributes> = entities.reduce((acc, entity) => {
+        acc[entity.id] = { entity, attributes: [] };
 
         return acc;
     }, {});
@@ -121,9 +111,8 @@ async function getEntitiesWithAttributes(): Promise<EntityWithAttributes[]> {
             acc[entityId].attributes.push(attribute);
 
             return acc;
-        }, mappingById ),
+        }, mappingById),
     );
-
 
     return entitiesWithAttributesList
         .map(({ entity, attributes }) => ({
@@ -163,13 +152,18 @@ function fillInterfaces(
 ) {
     const interfaceName = entity.id;
 
-    if (interfaceName === 'Reference' || interfaceName === 'Resource') {
+    if (interfaceName === 'Reference') {
         interfaceDeclarations[interfaceName] = {
             docs: entity.description ? [entity.description] : undefined,
             kind: StructureKind.Interface,
             isExported: true,
-            name: interfaceName,
-            properties: [],
+            name: `${interfaceName}<T extends Resource=any>`,
+            properties: [
+                {
+                    name: 'resourceType',
+                    type: `T["resourceType"]`
+                },
+            ],
         };
     } else {
         interfaceDeclarations[interfaceName] = {
@@ -178,13 +172,16 @@ function fillInterfaces(
             isExported: true,
             name:
                 interfaceName === 'Bundle'
-                    ? `${interfaceName}<T extends AidboxResource>`
+                    ? `${interfaceName}<T extends Resource=any>`
                     : interfaceName,
-            properties: [
-                { name: 'readonly resourceType', type: `'${interfaceName}'` },
+            properties: entity.type === 'resource' ||  interfaceName === 'Resource' ? [
+                {
+                    name: 'readonly resourceType',
+                    type: `${interfaceName === 'Resource' ? 'string' : `'${interfaceName}'`}`
+                },
                 { name: 'id', type: 'id', hasQuestionToken: true },
                 { name: 'meta', type: 'Meta', hasQuestionToken: true },
-            ],
+            ] : [],
         };
     }
 }
@@ -237,6 +234,18 @@ function fillProperties(
                 return attribute.enum.map((v) => `'${v}'`).join(' | ');
             }
 
+            if (attribute.refers) {
+                const resourceNames = attribute.refers.map((v) => `${v}`).join(' | ');
+
+                return `Reference<${resourceNames}>`;
+            }
+
+
+            // TODO: generalize
+            if (entity.id === 'Bundle' && attribute.path.join('.') === 'entry') {
+                return 'BundleEntry<T>';
+            }
+
             const propertyInterfaceType = capitalize(
                 convertPathToCamelCase([resourceType, ...attribute.path.filter((p) => p !== '*')]),
             );
@@ -264,11 +273,6 @@ function fillProperties(
                 }
 
                 // TODO: generalize
-                if (attribute.type.id === 'BundleEntry') {
-                    return 'BundleEntry<T>';
-                }
-
-                // TODO: generalize
                 if (entity.id === 'Bundle' && attribute.path.join('.') === 'entry.resource') {
                     return 'T';
                 }
@@ -289,9 +293,19 @@ function fillProperties(
             }
             return;
         };
+
+        const wrapArrayType = (type: string) => {
+            if (type.indexOf('<') !== -1) {
+                return `Array<${type}>`;
+            }
+
+            return `${type}[]`;
+        }
+
+        const propertyType = getPropertyType();
         const property = {
             docs: getDocs(),
-            type: `${getPropertyType()}${attribute.isCollection ? '[]' : ''}`,
+            type: attribute.isCollection ? wrapArrayType(propertyType) : propertyType,
             name: propertyName,
             hasQuestionToken: !attribute.isRequired,
         };
@@ -299,13 +313,15 @@ function fillProperties(
         if (interfaceDeclaration) {
             // Resource interface
             // Properties are always defined even if empty
-            interfaceDeclaration.properties!.push(property);
+            if (!interfaceDeclaration.properties!.find(({ name }) => name === property.name)) {
+                interfaceDeclaration.properties!.push(property);
+            }
         } else {
             // Auxiliary interface
             interfaceDeclarations[interfaceName] = {
                 kind: StructureKind.Interface,
                 isExported: true,
-                name: interfaceName === 'BundleEntry' ? `${interfaceName}<T>` : interfaceName,
+                name: interfaceName === 'BundleEntry' ? `${interfaceName}<T extends Resource=any>` : interfaceName,
                 properties: [property],
             };
         }

@@ -9,6 +9,7 @@ export interface Attribute {
     isOpen?: boolean;
     schema?: any;
     enum?: string[];
+    refers?: string[];
     _source?: string;
     resource: { resourceType: 'Entity'; id: string };
 }

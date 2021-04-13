@@ -3,7 +3,7 @@ module.exports = {
         'jest/globals': true,
     },
     root: true,
-    extends: ['prettier', 'prettier/react'],
+    extends: ['prettier'],
     parser: '@typescript-eslint/parser',
     plugins: ['@typescript-eslint', 'jest', 'import'],
     rules: {
