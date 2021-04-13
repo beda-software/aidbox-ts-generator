@@ -16,6 +16,25 @@
     },
     "devDependencies": {
         "@types/node-fetch": "^2.5.7",
+        "@typescript-eslint/eslint-plugin": "^4.22.0",
+        "@typescript-eslint/parser": "^4.22.0",
+        "eslint": "^7.24.0",
+        "eslint-config-prettier": "^8.2.0",
+        "eslint-plugin-import": "^2.22.1",
+        "eslint-plugin-prettier": "^3.3.1",
+        "eslint-plugin-unused-imports": "^1.1.1",
+        "husky": "^6.0.0",
+        "lint-staged": "^10.5.4",
+        "prettier": "^2.2.1",
         "ts-node": "^9.1.1"
+    },
+    "lint-staged": {
+        "*.{js,jsx,ts,tsx}": "eslint --fix",
+        "*.{js,jsx,ts,tsx,css,md}": "prettier --write"
+    },
+    "husky": {
+        "hooks": {
+            "pre-commit": "lint-staged"
+        }
     }
 }
