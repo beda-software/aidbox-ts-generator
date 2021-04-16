@@ -1,3 +1,6 @@
+import fs from 'fs';
+
+import { compile } from 'json-schema-to-typescript';
 import fetch from 'node-fetch';
 import {
     InterfaceDeclarationStructure,
@@ -9,6 +12,7 @@ import yargs from 'yargs';
 
 import { Attribute, Entity, EntityWithAttributes } from './types';
 import { capitalize, convertPathToCamelCase, preparePropertyName } from './utils';
+
 
 // TODO: Parametrize Bundle
 
@@ -61,6 +65,7 @@ async function main() {
     const entitiesWithAttributes = await getEntitiesWithAttributes();
     const interfaceDeclarations: Record<string, InterfaceDeclarationStructure> = {};
     const typeAliasDeclarations: Record<string, TypeAliasDeclarationStructure> = {};
+    const schemaInterfaces: Record<string, string> = {};
 
     typeAliasDeclarations.AidboxResource = {
         kind: StructureKind.TypeAlias,
@@ -72,8 +77,27 @@ async function main() {
         kind: StructureKind.TypeAlias,
         name: 'AidboxReference<T extends Resource=any>',
         isExported: true,
-        type: 'Reference<T>',
+        type: `Omit<Reference<T>, 'id'> & { id: keyword; }`,
     };
+
+
+    entitiesWithAttributes.forEach(({ entity, attributes }) => {
+        const resourceType = entity.id;
+
+        attributes.forEach(async (attribute) => {
+            if (attribute.schema) {
+                const propertyInterfaceType = capitalize(
+                    convertPathToCamelCase([resourceType, ...attribute.path.filter((p) => p !== '*')]),
+                );
+
+                try {
+                    schemaInterfaces[propertyInterfaceType] = await compile(attribute.schema, propertyInterfaceType);
+                } catch (err) {
+                    console.warn(`Error while generating type declarations from JSON schema for ${propertyInterfaceType}`)
+                }
+            }
+        })
+    })
 
     entitiesWithAttributes.forEach(({ entity }) => {
         if (entity.type === 'primitive') {
@@ -85,7 +109,7 @@ async function main() {
 
     entitiesWithAttributes.forEach(({ entity, attributes }) => {
         if (entity.type !== 'primitive') {
-            fillProperties(interfaceDeclarations, entity, attributes);
+            fillProperties(interfaceDeclarations, schemaInterfaces, entity, attributes);
         }
     });
 
@@ -93,6 +117,8 @@ async function main() {
     annotationsFile.addInterfaces(Object.values(interfaceDeclarations));
 
     await project.save();
+
+    Object.values(schemaInterfaces).forEach((declaration) => fs.appendFileSync(outputFile, declaration));
 }
 
 async function getEntitiesWithAttributes(): Promise<EntityWithAttributes[]> {
@@ -178,15 +204,15 @@ function fillInterfaces(
             properties:
                 entity.type === 'resource' || interfaceName === 'Resource'
                     ? [
-                          {
-                              name: 'readonly resourceType',
-                              type: `${
-                                  interfaceName === 'Resource' ? 'string' : `'${interfaceName}'`
-                              }`,
-                          },
-                          { name: 'id', type: 'id', hasQuestionToken: true },
-                          { name: 'meta', type: 'Meta', hasQuestionToken: true },
-                      ]
+                        {
+                            name: 'readonly resourceType',
+                            type: `${
+                                interfaceName === 'Resource' ? 'string' : `'${interfaceName}'`
+                            }`,
+                        },
+                        { name: 'id', type: 'id', hasQuestionToken: true },
+                        { name: 'meta', type: 'Meta', hasQuestionToken: true },
+                    ]
                     : [],
         };
     }
@@ -194,6 +220,7 @@ function fillInterfaces(
 
 function fillProperties(
     interfaceDeclarations: Record<string, InterfaceDeclarationStructure>,
+    schemaInterfaces: Record<string, string>,
     entity: Entity,
     attributes: Attribute[],
 ) {
@@ -229,8 +256,8 @@ function fillProperties(
 
         const propertyName = preparePropertyName(
             attribute.path.filter((p) => p !== '*')[
-                attribute.path.filter((p) => p !== '*').length - 1
-            ],
+            attribute.path.filter((p) => p !== '*').length - 1
+                ],
         );
 
         const interfaceDeclaration = interfaceDeclarations[interfaceName];
@@ -240,10 +267,14 @@ function fillProperties(
                 return attribute.enum.map((v) => `'${v}'`).join(' | ');
             }
 
-            if (attribute.refers) {
-                const resourceNames = attribute.refers.map((v) => `${v}`).join(' | ');
+            if (attribute.type?.id === 'Reference') {
+                if (attribute.refers) {
+                    const resourceNames = attribute.refers.map((v) => `${v}`).join(' | ');
 
-                return `Reference<${resourceNames}>`;
+                    return `AidboxReference<${resourceNames}>`;
+                }
+
+                return 'AidboxReference<any>';
             }
 
             // TODO: generalize
@@ -255,7 +286,7 @@ function fillProperties(
                 convertPathToCamelCase([resourceType, ...attribute.path.filter((p) => p !== '*')]),
             );
 
-            if (interfaceDeclarations[propertyInterfaceType]) {
+            if (interfaceDeclarations[propertyInterfaceType] || schemaInterfaces[propertyInterfaceType]) {
                 return propertyInterfaceType;
             }
 
