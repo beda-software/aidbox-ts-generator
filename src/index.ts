@@ -114,7 +114,7 @@ async function main() {
     });
 
     annotationsFile.addTypeAliases(Object.values(typeAliasDeclarations));
-    annotationsFile.addInterfaces(Object.values(interfaceDeclarations));
+    annotationsFile.addInterfaces(Object.values(interfaceDeclarations).sort((a, b) => a.name.localeCompare(b.name)));
 
     await project.save();
 
@@ -228,16 +228,6 @@ function fillProperties(
 
     attributes.forEach((attribute) => {
         if (attribute.path[attribute.path.length - 1] === '*') {
-            return;
-        }
-
-        if (
-            entity.id !== 'Reference' &&
-            entity.id !== 'Resource' &&
-            attribute.path.length === 1 &&
-            (attribute.path[0] === 'id' || attribute.path[0] === 'meta')
-        ) {
-            // Skip id because every resource has this field, but aidbox doesn't return it for custom resources
             return;
         }
 
