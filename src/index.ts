@@ -1,7 +1,7 @@
 import fs from 'fs';
 
 import { compile } from 'json-schema-to-typescript';
-import fetch from 'node-fetch';
+import fetch, { Headers } from 'node-fetch';
 import {
     InterfaceDeclarationStructure,
     Project,
@@ -35,15 +35,37 @@ const argv = yargs(process.argv.slice(2))
             alias: 'auth',
             type: 'string',
         },
+        username: {
+            description: 'Username for Basic auth',
+            alias: 'user',
+            type: 'string'
+        },
+        password: {
+            description: 'Password for Basic auth',
+            alias: 'pass',
+            type: 'string',
+        },
     })
     .help()
     .alias('help', 'h').argv;
 
-const { authorizationHeader, baseUrl, outputFile } = argv;
+const { authorizationHeader, baseUrl, outputFile, username, password } = argv;
 
 main()
     .then(() => console.log('Aidbox type script annotations are successfully generated'))
     .catch((err) => console.log('Error while generating', err));
+
+function getAuthHeaders() {
+    if (authorizationHeader) {
+        return { Authorization: authorizationHeader };
+    }
+
+    if (username &&password ){
+        return { Authorization:'Basic ' + Buffer.from(username + ":" + password).toString('base64')}
+    }
+
+    return {};
+}
 
 function fetchResources<T extends { resourceType: string }>(
     resourceType: T['resourceType'],
@@ -51,7 +73,7 @@ function fetchResources<T extends { resourceType: string }>(
     return fetch(`${baseUrl}/${resourceType}/$dump`, {
         headers: {
             'Content-Type': 'application/json',
-            ...(authorizationHeader ? { Authorization: authorizationHeader } : {}),
+            ...getAuthHeaders() as Headers,
         },
     })
         .then((response: any) => response.text())
