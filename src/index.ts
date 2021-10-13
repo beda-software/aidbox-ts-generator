@@ -97,19 +97,47 @@ async function main() {
     const typeAliasDeclarations: Record<string, TypeAliasDeclarationStructure> = {};
     const schemaInterfaces: Record<string, string> = {};
 
+    typeAliasDeclarations.InternalReference = {
+        kind: StructureKind.TypeAlias,
+        name: 'InternalReference<T extends Resource=any>',
+        isExported: true,
+        type: `Omit<Reference<T>, 'id'> & Required<Pick<Reference<T>, 'id'>>`,
+        docs: ['Reference to internal resource that is accessible via id']
+    };
+    typeAliasDeclarations.ExternalReference = {
+        kind: StructureKind.TypeAlias,
+        name: 'ExternalReference<T extends Resource=any>',
+        isExported: true,
+        type: `Omit<Reference<T>, 'uri'> & Required<Pick<Reference<T>, 'uri'>>`,
+        docs: ['Reference to external resource that is accessible via uri']
+    };
+    typeAliasDeclarations.LogicalReference = {
+        kind: StructureKind.TypeAlias,
+        name: 'LogicalReference<T extends Resource=any>',
+        isExported: true,
+        type: `Omit<Reference<T>, 'identifier'> & Required<Pick<Reference<T>, 'identifier'>>`,
+        docs: ['Logical reference that must have identifier']
+    };
+    typeAliasDeclarations.LocalReference = {
+        kind: StructureKind.TypeAlias,
+        name: 'LocalReference<T extends Resource=any>',
+        isExported: true,
+        type: `Omit<Reference<T>, 'localRef'> & Required<Pick<Reference<T>, 'localRef'>>`,
+        docs: ['Reference to contained resource']
+    };
     typeAliasDeclarations.AidboxResource = {
         kind: StructureKind.TypeAlias,
         name: 'AidboxResource',
         isExported: true,
         type: 'Resource',
-        docs: ['Deprecated. Use Resource instead'],
+        docs: ['Alias for Resource']
     };
     typeAliasDeclarations.AidboxReference = {
         kind: StructureKind.TypeAlias,
         name: 'AidboxReference<T extends Resource=any>',
         isExported: true,
-        type: `Reference<T>`,
-        docs: ['Deprecated. Use Reference instead'],
+        type: 'InternalReference<T>',
+        docs: ['Alias for InternalReference']
     };
 
     entitiesWithAttributes.forEach(({ entity, attributes }) => {
@@ -231,7 +259,6 @@ function fillInterfaces(
                     name: 'resourceType',
                     type: `T["resourceType"]`,
                 },
-                { name: 'id', type: 'id' },
             ],
         };
     } else {

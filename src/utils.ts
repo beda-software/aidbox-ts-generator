@@ -25,10 +25,10 @@ export const getPropertyType = (
             if (attribute.refers) {
                 const resourceNames = attribute.refers.map((v) => `${v}`).join(' | ');
 
-                return `Reference<${resourceNames}>`;
+                return `InternalReference<${resourceNames}>`;
             }
 
-            return 'Reference<any>';
+            return 'InternalReference<any>';
         }
 
         if (attribute.type.id === 'Map') {
