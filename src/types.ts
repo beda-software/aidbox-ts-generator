@@ -11,6 +11,7 @@ export interface Attribute {
     enum?: string[];
     refers?: string[];
     _source?: string;
+    extensionUrl?: string;
     resource: { resourceType: 'Entity'; id: string };
 }
 
