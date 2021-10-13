@@ -1,9 +1,7 @@
 import { InterfaceDeclarationStructure } from 'ts-morph';
 
+import { genericAuxiliaryInterfaceAttributes, genericInterfaces } from './constants';
 import { Attribute } from './types';
-
-export const genericInterfaces = ['Bundle', 'BundleEntry'];
-export const genericAuxiliaryInterfaceAttributes = { BundleEntry: ['resource'] };
 
 export const getPropertyType = (
     resourceType: string,

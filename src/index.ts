@@ -10,6 +10,7 @@ import {
 } from 'ts-morph';
 import yargs from 'yargs';
 
+import { nonPersistedResources } from './constants';
 import { Attribute, Entity, EntityWithAttributes } from './types';
 import {
     extractDocs,
@@ -242,15 +243,19 @@ function fillInterfaces(
             properties:
                 entity.type === 'resource' || interfaceName === 'Resource'
                     ? [
-                          {
-                              name: 'readonly resourceType',
-                              type: `${
-                                  interfaceName === 'Resource' ? 'string' : `'${interfaceName}'`
-                              }`,
-                          },
-                          { name: 'id', type: 'id' },
-                          { name: 'meta', type: 'Meta', hasQuestionToken: true },
-                      ]
+                        {
+                            name: 'readonly resourceType',
+                            type: `${
+                                interfaceName === 'Resource' ? 'string' : `'${interfaceName}'`
+                            }`,
+                        },
+                        {
+                            name: 'id',
+                            type: 'id',
+                            hasQuestionToken: nonPersistedResources.indexOf(interfaceName) !== -1
+                        },
+                        { name: 'meta', type: 'Meta', hasQuestionToken: true },
+                    ]
                     : [],
         };
     }
