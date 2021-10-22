@@ -10,7 +10,6 @@ import {
 } from 'ts-morph';
 import yargs from 'yargs';
 
-import { nonPersistedResources } from './constants';
 import { Attribute, Entity, EntityWithAttributes } from './types';
 import {
     extractDocs,
@@ -279,7 +278,7 @@ function fillInterfaces(
                         {
                             name: 'id',
                             type: 'id',
-                            hasQuestionToken: nonPersistedResources.indexOf(interfaceName) !== -1
+                            hasQuestionToken: true
                         },
                         { name: 'meta', type: 'Meta', hasQuestionToken: true },
                     ]

@@ -124,7 +124,7 @@ export function wrapPropertyName(name: string) {
 }
 
 export function wrapArrayType(type: string) {
-    if (type.indexOf('<') !== -1) {
+    if (type.indexOf('<') !== -1 || type.indexOf('|') !== -1) {
         return `Array<${type}>`;
     }
 
